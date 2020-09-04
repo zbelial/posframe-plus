@@ -1,7 +1,7 @@
-;; posframe-plus.el --- TODO.  -*- lexical-binding: t; -*-
+;; posframe-plus.el --- You can set up active map for posframe easily.  -*- lexical-binding: t; -*-
 
 ;; Filename: posframe-plus.el
-;; Description: TODO
+;; Description: You can set up active map for posframe easily
 ;; Author:  zbelial <zjyzhaojiyang@gmail.com>
 ;; Maintainer:  zbelial <zjyzhaojiyang@gmail.com>
 ;; Copyright (C) 2020, zbelial, all rights reserved.
