@@ -85,9 +85,9 @@
 
 (defun posframe-plus-hide-frame ()
   (interactive)
-  (remove-hook 'post-command-hook 'posframe-plus-hide-after-move)
-  (posframe-plus-deactivate-map)
   (posframe-hide posframe-plus--buffer-or-name)
+  (posframe-plus-deactivate-map)
+  (remove-hook 'post-command-hook 'posframe-plus-hide-after-move)
   )
 
 (defun posframe-plus-hide-after-move ()
@@ -140,10 +140,6 @@ If hide-after-move is t, after moving point, the posframe will hide.
     (define-key posframe-plus-active-map (kbd "C-g") nil))
   (posframe-plus-activate-map posframe-plus-active-map)
 
-  (if hide-after-move
-      (add-hook 'post-command-hook 'posframe-plus-hide-after-move)
-    (remove-hook 'post-command-hook 'posframe-plus-hide-after-move))
-
   (setq posframe-plus--last-point (point))
   (setq posframe-plus--last-scroll-offset (window-start))
 
@@ -176,6 +172,10 @@ If hide-after-move is t, after moving point, the posframe will hide.
                  :refresh refresh
                  :accept-focus accept-focus
                  :hidehandler hidehandler
-                 ))
+                 )
+  (if hide-after-move
+      (add-hook 'post-command-hook 'posframe-plus-hide-after-move)
+    (remove-hook 'post-command-hook 'posframe-plus-hide-after-move))
+  )
 
 (provide 'posframe-plus)
