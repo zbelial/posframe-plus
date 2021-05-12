@@ -53,6 +53,9 @@
 
 (defvar-local posframe-plus--keymap nil)
 
+(defvar-local posframe-plus--timeout-timer nil
+  "Record the timer to deal with timeout argument of `posframe-plus-show'.")
+
 (defvar posframe-plus-emulation-alist '((t . nil)))
 
 (defun posframe-plus-enable-overriding-keymap (keymap)
@@ -85,9 +88,11 @@
 
 (defun posframe-plus-hide-frame ()
   (interactive)
-  (posframe-hide posframe-plus--buffer-or-name)
-  (posframe-plus-deactivate-map)
-  (remove-hook 'post-command-hook 'posframe-plus-hide-after-move)
+  (when posframe-plus--buffer-or-name
+    (posframe-hide posframe-plus--buffer-or-name)
+    (posframe-plus-deactivate-map)
+    (remove-hook 'post-command-hook 'posframe-plus-hide-after-move)
+    )
   )
 
 (defun posframe-plus-hide-after-move ()
@@ -97,6 +102,15 @@
                (equal (point) posframe-plus--last-point)
                (equal (window-start) posframe-plus--last-scroll-offset))
         (posframe-plus-hide-frame)))))
+
+(defun posframe-plus--run-timeout-timer (posframe secs)
+  "Hide POSFRAME after a delay of SECS seconds."
+  (when (and (numberp secs) (> secs 0))
+    (when (timerp posframe-plus--timeout-timer)
+      (cancel-timer posframe-plus--timeout-timer))
+    (setq-local posframe-plus--timeout-timer
+                (run-with-timer
+                 secs nil #'posframe-plus-deactivate-map))))
 
 (cl-defun posframe-plus-show (buffer-or-name enable-ctrl-g hide-after-move
                                              &key
@@ -133,49 +147,58 @@
 If enable-ctrl-g is t, pressing `Ctrl-g' will hide the posframe.
 If hide-after-move is t, after moving point, the posframe will hide.
 "
-  (setq posframe-plus--buffer-or-name buffer-or-name)
+  (let (to posframe)
 
-  (if enable-ctrl-g
-      (define-key posframe-plus-active-map (kbd "C-g") 'posframe-plus-hide-frame)
-    (define-key posframe-plus-active-map (kbd "C-g") nil))
-  (posframe-plus-activate-map posframe-plus-active-map)
+    (posframe-plus-hide-frame)
 
-  (setq posframe-plus--last-point (point))
-  (setq posframe-plus--last-scroll-offset (window-start))
+    (setq posframe-plus--buffer-or-name buffer-or-name)
 
-  (posframe-show buffer-or-name
-                 :string string
-                 :position position
-                 :poshandler poshandler
-                 :width width
-                 :height height
-                 :min-width min-width
-                 :min-height min-height
-                 :x-pixel-offset x-pixel-offset
-                 :y-pixel-offset y-pixel-offset
-                 :left-fringe left-fringe
-                 :right-fringe right-fringe
-                 :internal-border-width internal-border-width
-                 :internal-border-color internal-border-color
-                 :font font
-                 :foreground-color foreground-color
-                 :background-color background-color
-                 :respect-header-line respect-header-line
-                 :respect-mode-line respect-mode-line
-                 :respect-tab-line respect-tab-line
-                 :initialize initialize
-                 :no-properties no-properties
-                 :keep-ratio keep-ratio
-                 :lines-truncate lines-truncate
-                 :override-parameters override-parameters
-                 :timeout timeout
-                 :refresh refresh
-                 :accept-focus accept-focus
-                 :hidehandler hidehandler
-                 )
-  (if hide-after-move
-      (add-hook 'post-command-hook 'posframe-plus-hide-after-move)
-    (remove-hook 'post-command-hook 'posframe-plus-hide-after-move))
+    (if enable-ctrl-g
+        (define-key posframe-plus-active-map (kbd "C-g") 'posframe-plus-hide-frame)
+      (define-key posframe-plus-active-map (kbd "C-g") nil))
+    (posframe-plus-activate-map posframe-plus-active-map)
+
+    (setq posframe-plus--last-point (point))
+    (setq posframe-plus--last-scroll-offset (window-start))
+
+    (setq posframe (posframe-show buffer-or-name
+                                  :string string
+                                  :position position
+                                  :poshandler poshandler
+                                  :width width
+                                  :height height
+                                  :min-width min-width
+                                  :min-height min-height
+                                  :x-pixel-offset x-pixel-offset
+                                  :y-pixel-offset y-pixel-offset
+                                  :left-fringe left-fringe
+                                  :right-fringe right-fringe
+                                  :internal-border-width internal-border-width
+                                  :internal-border-color internal-border-color
+                                  :font font
+                                  :foreground-color foreground-color
+                                  :background-color background-color
+                                  :respect-header-line respect-header-line
+                                  :respect-mode-line respect-mode-line
+                                  :respect-tab-line respect-tab-line
+                                  :initialize initialize
+                                  :no-properties no-properties
+                                  :keep-ratio keep-ratio
+                                  :lines-truncate lines-truncate
+                                  :override-parameters override-parameters
+                                  :timeout timeout
+                                  :refresh refresh
+                                  :accept-focus accept-focus
+                                  :hidehandler hidehandler
+                                  ))
+
+    (setq to (funcall posframe-arghandler buffer-or-name :timeout timeout))
+    (posframe-plus--run-timeout-timer posframe to)
+    
+    (if hide-after-move
+        (add-hook 'post-command-hook 'posframe-plus-hide-after-move)
+      (remove-hook 'post-command-hook 'posframe-plus-hide-after-move))
+    )
   )
 
 (provide 'posframe-plus)
