@@ -192,8 +192,7 @@ If hide-after-move is t, after moving point, the posframe will hide.
                                   :hidehandler hidehandler
                                   ))
 
-    (setq to (funcall posframe-arghandler buffer-or-name :timeout timeout))
-    (posframe-plus--run-timeout-timer posframe to)
+    (posframe-plus--run-timeout-timer posframe timeout)
     
     (if hide-after-move
         (add-hook 'post-command-hook 'posframe-plus-hide-after-move)
