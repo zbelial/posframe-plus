@@ -45,11 +45,13 @@
   "Keymap that is enabled when showing a posframe.")
 
 (defvar posframe-plus--last-point 0
-  "Hold last point when show tooltip, use for hide tooltip after move point.")
+  "Hold last point when showing tooltip, use for hiding tooltip after moving point.")
 (defvar posframe-plus--last-scroll-offset 0
-  "Hold last scroll offset when show tooltip, use for hide tooltip after window scroll.")
+  "Hold last scroll offset when showing tooltip, use for hiding tooltip after window scrolling.")
+(defvar posframe-plus--last-buffer nil
+  "Hold current buffer when showing tooltip, use for hiding tooltip after current buffer changing.")
 
-(defvar-local posframe-plus--buffer-or-name nil)
+(defvar posframe-plus--buffer-or-name nil)
 
 (defvar-local posframe-plus--keymap nil)
 
@@ -98,9 +100,10 @@
 (defun posframe-plus-hide-after-move ()
   (ignore-errors
     (when (get-buffer posframe-plus--buffer-or-name)
-      (unless (and
-               (equal (point) posframe-plus--last-point)
-               (equal (window-start) posframe-plus--last-scroll-offset))
+      (when (or
+             (not (equal (current-buffer) posframe-plus--last-buffer))
+             (not (equal (point) posframe-plus--last-point))
+             (not (equal (window-start) posframe-plus--last-scroll-offset)))
         (posframe-plus-hide-frame)))))
 
 (defun posframe-plus--run-timeout-timer (posframe secs)
@@ -160,6 +163,7 @@ If hide-after-move is t, after moving point, the posframe will hide.
 
     (setq posframe-plus--last-point (point))
     (setq posframe-plus--last-scroll-offset (window-start))
+    (setq posframe-plus--last-buffer (current-buffer))
 
     (setq posframe (posframe-show buffer-or-name
                                   :string string
@@ -195,8 +199,12 @@ If hide-after-move is t, after moving point, the posframe will hide.
     (posframe-plus--run-timeout-timer posframe timeout)
     
     (if hide-after-move
-        (add-hook 'post-command-hook 'posframe-plus-hide-after-move)
-      (remove-hook 'post-command-hook 'posframe-plus-hide-after-move))
+        (progn
+          (add-hook 'post-command-hook 'posframe-plus-hide-after-move)
+          (add-hook 'window-configuration-change-hook 'posframe-plus-hide-after-move)
+          )
+      (remove-hook 'post-command-hook 'posframe-plus-hide-after-move)
+      (remove-hook 'window-configuration-change-hook 'posframe-plus-hide-after-move))
     )
   )
 
