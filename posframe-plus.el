@@ -101,7 +101,6 @@
   (ignore-errors
     (when (get-buffer posframe-plus--buffer-or-name)
       (when (or
-             (not (equal (current-buffer) posframe-plus--last-buffer))
              (not (equal (point) posframe-plus--last-point))
              (not (equal (window-start) posframe-plus--last-scroll-offset)))
         (posframe-plus-hide-frame)))))
@@ -150,6 +149,8 @@
 If enable-ctrl-g is t, pressing `Ctrl-g' will hide the posframe.
 If hide-after-move is t, after moving point, the posframe will hide.
 "
+  (remove-hook 'post-command-hook 'posframe-plus-hide-after-move)
+
   (let (to posframe)
 
     (posframe-plus-hide-frame)
@@ -201,11 +202,6 @@ If hide-after-move is t, after moving point, the posframe will hide.
     (if hide-after-move
         (progn
           (add-hook 'post-command-hook 'posframe-plus-hide-after-move)
-          (add-hook 'window-configuration-change-hook 'posframe-plus-hide-after-move)
-          )
-      (remove-hook 'post-command-hook 'posframe-plus-hide-after-move)
-      (remove-hook 'window-configuration-change-hook 'posframe-plus-hide-after-move))
-    )
-  )
+          ))))
 
 (provide 'posframe-plus)
