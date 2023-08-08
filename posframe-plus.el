@@ -44,19 +44,18 @@
     keymap)
   "Keymap that is enabled when showing a posframe.")
 
-(defvar posframe-plus--last-point 0
+(defvar-local posframe-plus--last-point 0
   "Hold last point when showing tooltip, use for hiding tooltip after moving point.")
-(defvar posframe-plus--last-scroll-offset 0
+(defvar-local posframe-plus--last-scroll-offset 0
   "Hold last scroll offset when showing tooltip, use for hiding tooltip after window scrolling.")
-(defvar posframe-plus--last-buffer nil
+(defvar-local posframe-plus--last-buffer nil
   "Hold current buffer when showing tooltip, use for hiding tooltip after current buffer changing.")
-
-(defvar posframe-plus--buffer-or-name nil)
+(defvar-local posframe-plus--hide-after-move-p nil
+  "If this child frame should be hide when cursor moves, the value is t.")
+(defvar-local posframe-plus--ctrl-g-hide-p nil
+  "If this child frame should be hide when Ctrl-g pressed, the value is t.")
 
 (defvar-local posframe-plus--keymap nil)
-
-(defvar-local posframe-plus--timeout-timer nil
-  "Record the timer to deal with timeout argument of `posframe-plus-show'.")
 
 (defvar posframe-plus-emulation-alist '((t . nil)))
 
@@ -81,91 +80,100 @@
 (defun posframe-plus-activate-map (keymap)
   (posframe-plus-ensure-emulation-alist)
   (posframe-plus-enable-overriding-keymap keymap)
-  (posframe-plus-install-map)
-  )
+  (posframe-plus-install-map))
 
 (defun posframe-plus-deactivate-map()
   (posframe-plus-uninstall-map))
 
-
-(defun posframe-plus-hide-frame ()
+(defun posframe-plus-ctrl-g-hide-frames ()
   (interactive)
-  (when posframe-plus--buffer-or-name
-    (posframe-hide posframe-plus--buffer-or-name)
-    (posframe-plus-deactivate-map)
-    (remove-hook 'post-command-hook 'posframe-plus-hide-after-move)
-    )
-  )
+  (dolist (frame (frame-list))
+    (when-let* ((posframe-buffer (frame-parameter frame 'posframe-buffer))
+                (buffer (cdr posframe-buffer)))
+      (with-current-buffer buffer
+        (if posframe-plus--ctrl-g-hide-p
+            (posframe--make-frame-invisible frame)))))
+  (define-key posframe-plus-active-map (kbd "C-g") nil)
+  (posframe-plus-deactivate-map))
 
-(defun posframe-plus-hide-after-move ()
-  (ignore-errors
-    (when (get-buffer posframe-plus--buffer-or-name)
-      (when (or
-             (not (equal (point) posframe-plus--last-point))
-             (not (equal (window-start) posframe-plus--last-scroll-offset)))
-        (posframe-plus-hide-frame)))))
+(defun posframe-plus-hide-after-move-handler (info)
+  (let ((parent-buffer (cdr (plist-get info :posframe-parent-buffer)))
+        (buffer (cdr (plist-get info :posframe-buffer)))
+        current-buffer
+        current-point
+        current-offset)
+    (with-current-buffer (current-buffer)
+      (setq current-buffer (current-buffer)
+            current-point (point)
+            current-offset (window-start)))
+    (with-current-buffer buffer
+      (and posframe-plus--hide-after-move-p
+           (or (not (equal current-buffer posframe-plus--last-buffer))
+               (not (equal current-point posframe-plus--last-point))
+               (not (equal current-offset posframe-plus--last-scroll-offset)))))))
 
-(defun posframe-plus--run-timeout-timer (posframe secs)
-  "Hide POSFRAME after a delay of SECS seconds."
-  (when (and (numberp secs) (> secs 0))
-    (when (timerp posframe-plus--timeout-timer)
-      (cancel-timer posframe-plus--timeout-timer))
-    (setq-local posframe-plus--timeout-timer
-                (run-with-timer
-                 secs nil #'posframe-plus-deactivate-map))))
-
-(cl-defun posframe-plus-show (buffer-or-name enable-ctrl-g hide-after-move
-                                             &key
-                                             string
-                                             position
-                                             poshandler
-                                             width
-                                             height
-                                             min-width
-                                             min-height
-                                             x-pixel-offset
-                                             y-pixel-offset
-                                             left-fringe
-                                             right-fringe
-                                             internal-border-width
-                                             internal-border-color
-                                             font
-                                             foreground-color
-                                             background-color
-                                             respect-header-line
-                                             respect-mode-line
-                                             respect-tab-line
-                                             initialize
-                                             no-properties
-                                             keep-ratio
-                                             lines-truncate
-                                             override-parameters
-                                             timeout
-                                             refresh
-                                             accept-focus
-                                             hidehandler
-                                             &allow-other-keys)
+(cl-defun posframe-plus-show (buffer-or-name
+                              enable-ctrl-g
+                              hide-after-move
+                              &key
+                              string
+                              position
+                              poshandler
+                              width
+                              height
+                              min-width
+                              min-height
+                              x-pixel-offset
+                              y-pixel-offset
+                              left-fringe
+                              right-fringe
+                              internal-border-width
+                              internal-border-color
+                              font
+                              foreground-color
+                              background-color
+                              respect-header-line
+                              respect-mode-line
+                              respect-tab-line
+                              initialize
+                              no-properties
+                              keep-ratio
+                              lines-truncate
+                              override-parameters
+                              timeout
+                              refresh
+                              accept-focus
+                              hidehandler
+                              &allow-other-keys)
   "Pop up a posframe and show STRING at POSITION.
 If enable-ctrl-g is t, pressing `Ctrl-g' will hide the posframe.
 If hide-after-move is t, after moving point, the posframe will hide.
 "
-  (remove-hook 'post-command-hook 'posframe-plus-hide-after-move)
-
-  (let (to posframe)
-
-    (posframe-plus-hide-frame)
-
-    (setq posframe-plus--buffer-or-name buffer-or-name)
-
-    (if enable-ctrl-g
-        (define-key posframe-plus-active-map (kbd "C-g") 'posframe-plus-hide-frame)
-      (define-key posframe-plus-active-map (kbd "C-g") nil))
-    (posframe-plus-activate-map posframe-plus-active-map)
-
-    (setq posframe-plus--last-point (point))
-    (setq posframe-plus--last-scroll-offset (window-start))
-    (setq posframe-plus--last-buffer (current-buffer))
-
+  (let (to
+        posframe
+        posframe-buffer
+        local-hide-handler
+        (last-buffer (current-buffer))
+        (last-point (point))
+        (last-offset (window-start)))
+    (setq posframe-buffer (get-buffer-create buffer-or-name))
+    (with-current-buffer posframe-buffer
+      (when hide-after-move
+        (setq-local posframe-plus--hide-after-move-p t
+                    posframe-plus--last-buffer last-buffer
+                    posframe-plus--last-point last-point
+                    posframe-plus--last-scroll-offset last-offset))
+      (when enable-ctrl-g
+        (setq-local posframe-plus--ctrl-g-hide-p t)))
+    (if hidehandler
+        (if hide-after-move
+            (setq local-hide-handler (lambda (info) (or (posframe-plus-hide-after-move-handler info) (funcall #'hidehandler info))))
+          (setq local-hide-handler hidehandler))
+      (when hide-after-move
+        (setq local-hide-handler #'posframe-plus-hide-after-move-handler)))
+    (when enable-ctrl-g
+      (define-key posframe-plus-active-map (kbd "C-g") #'posframe-plus-ctrl-g-hide-frames)
+      (posframe-plus-activate-map posframe-plus-active-map))
     (setq posframe (posframe-show buffer-or-name
                                   :string string
                                   :position position
@@ -194,14 +202,8 @@ If hide-after-move is t, after moving point, the posframe will hide.
                                   :timeout timeout
                                   :refresh refresh
                                   :accept-focus accept-focus
-                                  :hidehandler hidehandler
+                                  :hidehandler local-hide-handler
                                   ))
-
-    (posframe-plus--run-timeout-timer posframe timeout)
-    
-    (if hide-after-move
-        (progn
-          (add-hook 'post-command-hook 'posframe-plus-hide-after-move)
-          ))))
+    posframe))
 
 (provide 'posframe-plus)
