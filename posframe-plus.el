@@ -167,7 +167,7 @@ If hide-after-move is t, after moving point, the posframe will hide.
         (setq-local posframe-plus--ctrl-g-hide-p t)))
     (if hidehandler
         (if hide-after-move
-            (setq local-hide-handler (lambda (info) (or (posframe-plus-hide-after-move-handler info) (funcall #'hidehandler info))))
+            (setq local-hide-handler (lambda (info) (or (posframe-plus-hide-after-move-handler info) (funcall hidehandler info))))
           (setq local-hide-handler hidehandler))
       (when hide-after-move
         (setq local-hide-handler #'posframe-plus-hide-after-move-handler)))
